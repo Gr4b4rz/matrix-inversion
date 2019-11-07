@@ -6,6 +6,7 @@
 
 using matrix = std::vector<std::vector<double>>;
 const double EPSILON = 1e-16;
+const double EPSILON_RESIDUAL = 1e-10;
 const int DIMENSION = 1000;
 const std::pair<int, int> RANDOM_RANGE = {1, 10000};
 
@@ -13,11 +14,20 @@ class ZeroDiagonalEception : std::exception {};
 
 void calculate_column(int k, matrix &A, matrix &X);
 void decompose_to_LU(matrix &a_matrix);
-matrix create_identity_matrix();
+matrix create_identity_matrix(int dim);
 matrix inverse_matrix(matrix &mtx);
 void print_matrix(const matrix &mtx);
 matrix create_random_matrix(int dim);
-
+matrix transpose_matrix(const matrix &mtx);
+matrix substract_matrices(const matrix &a_matrix, const matrix &b_matrix);
+matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix);
+matrix multiply_by_scalar(const matrix &a_matrix, double val);
+double calculate_matrix_trace(const matrix &mtx);
+matrix calculate_R_matrix(const matrix &I_matrix, const matrix &BxA_matrix);
+bool check_R_matrix(const matrix &R_matrix);
+matrix calculate_next_B_matrix(const matrix &B_matrix,
+                               const matrix &BxA_matrix);
+matrix inverse_matrix_iterative(const matrix &A_matrix);
 
 int main(int argc, char **argv) {
     int dim;
@@ -27,9 +37,8 @@ int main(int argc, char **argv) {
         dim = atoi(argv[1]);
 
     matrix random_matrix = create_random_matrix(dim);
-    // print_matrix(random_matrix);
-    auto reverse_matrix = inverse_matrix(random_matrix);
-    // print_matrix(reverse_matrix);
+    inverse_matrix_iterative(random_matrix);
+    // inverse_matrix(random_matrix);
     std::cout << "Matrix has been successfully inversed" << std::endl;
 
     return 0;
@@ -66,7 +75,7 @@ matrix create_random_matrix(int dim) {
 /*
  * Create matrix with ones on the main diagonal and zeros elsewhere.
  */
-matrix create_identity_matrix(const int dim) {
+matrix create_identity_matrix(int dim) {
     matrix i_matrix((dim), std::vector<double>(dim));
     i_matrix[0][0] = 1.0;
     for (int n = 0; n < dim; ++n)
@@ -142,4 +151,116 @@ matrix inverse_matrix(matrix &a_matrix) {
     }
 
     return i_matrix;
+}
+
+/*
+ * Transposes square matrix.
+ */
+matrix transpose_matrix(const matrix &mtx) {
+    matrix t_matrix((mtx.size()), std::vector<double>(mtx.size()));
+    for (size_t i = 0; i < mtx.size(); ++i)
+        for (size_t j = 0; j < mtx[0].size(); ++j)
+            t_matrix[j][i] = mtx[i][j];
+    return t_matrix;
+}
+
+/*
+ * Substracts matrix A from matrix B
+ */
+matrix substract_matrices(const matrix &a_matrix, const matrix &b_matrix) {
+    matrix s_matrix((a_matrix.size()), std::vector<double>(a_matrix.size()));
+    for (size_t i = 0; i < a_matrix.size(); ++i)
+        for (size_t j = 0; j < a_matrix[0].size(); ++j)
+            s_matrix[i][j] = a_matrix[i][j] - b_matrix[i][j];
+    return s_matrix;
+}
+
+/*
+ * Multiplies matrix A by matrix B
+ */
+matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix) {
+    matrix m_matrix((a_matrix.size()), std::vector<double>(a_matrix.size()));
+    for (size_t i = 0; i < a_matrix.size(); ++i) {
+        for (size_t j = 0; j < a_matrix[0].size(); ++j) {
+            for (size_t k = 0; k < a_matrix.size(); k++)
+                m_matrix[i][j] += a_matrix[i][k] * b_matrix[k][j];
+        }
+    }
+    return m_matrix;
+}
+
+/*
+ * Multiplies matrix A by scalar value
+ */
+matrix multiply_by_scalar(const matrix &a_matrix, double val) {
+    matrix m_matrix((a_matrix.size()), std::vector<double>(a_matrix.size()));
+    for (size_t i = 0; i < a_matrix.size(); ++i)
+        for (size_t j = 0; j < a_matrix[0].size(); ++j)
+            m_matrix[i][j] = a_matrix[i][j] * val;
+    return m_matrix;
+}
+
+/*
+ * Calculate matrix trace - sum of elements on diagonal.
+ */
+double calculate_matrix_trace(const matrix &mtx) {
+    double trace = 0;
+    for (int i = 0; i < mtx.size(); ++i)
+        for (int j = 0; j < mtx[0].size(); ++j)
+            if (i == j)
+                trace += mtx[i][j];
+    return trace;
+}
+
+/*
+ * Calculates residual matrix, which measures how matrix B
+ * differs from matrix A.
+ */
+matrix calculate_R_matrix(const matrix &I_matrix, const matrix &BxA_matrix) {
+    matrix R_matrix = substract_matrices(I_matrix, BxA_matrix);
+    return R_matrix;
+}
+
+/*
+ * If value of R_matrix is small enough, return true, else return false.
+ */
+bool check_R_matrix(const matrix &R_matrix) {
+    double R_matrix_sum = 0.0;
+    for (const auto &raw : R_matrix)
+        for (const auto &element : raw)
+            R_matrix_sum += fabs(element);
+
+    return R_matrix_sum < EPSILON_RESIDUAL;
+}
+
+/*
+ * Calculates next aproximation of inversed A_matrix called B_matrix
+ */
+matrix calculate_next_B_matrix(const matrix &B_matrix,
+                               const matrix &BxA_matrix) {
+    matrix next_B_matrix =
+        substract_matrices(multiply_by_scalar(B_matrix, 2),
+                           multiply_matrices(BxA_matrix, B_matrix));
+    return next_B_matrix;
+}
+
+/*
+ * Inverses matrix with fast iterative method
+ */
+matrix inverse_matrix_iterative(const matrix &A_matrix) {
+    const matrix I_matrix = create_identity_matrix(A_matrix.size());
+    matrix trans_A_matrix = transpose_matrix(A_matrix);
+    matrix B_matrix = multiply_by_scalar(
+        trans_A_matrix, 1 / calculate_matrix_trace(
+                                multiply_matrices(trans_A_matrix, A_matrix)));
+    matrix R_matrix =
+        calculate_R_matrix(I_matrix, multiply_matrices(B_matrix, A_matrix));
+
+    while (!check_R_matrix(R_matrix)) {
+        matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
+        B_matrix = calculate_next_B_matrix(B_matrix, BxA_matrix);
+        R_matrix = calculate_R_matrix(I_matrix, BxA_matrix);
+    }
+
+    return B_matrix;
 }
