@@ -1,4 +1,5 @@
 #include <cmath>
+#include <future>
 #include <iostream>
 #include <random>
 #include <string>
@@ -25,6 +26,8 @@ matrix multiply_by_scalar(const matrix &a_matrix, double val);
 double calculate_matrix_trace(const matrix &mtx);
 matrix calculate_R_matrix(const matrix &I_matrix, const matrix &BxA_matrix);
 bool check_R_matrix(const matrix &R_matrix);
+matrix calculate_first_B_matrix(const matrix &trans_A_matrix,
+                                const matrix &A_matrix);
 matrix calculate_next_B_matrix(const matrix &B_matrix,
                                const matrix &BxA_matrix);
 matrix inverse_matrix_iterative(const matrix &A_matrix);
@@ -234,13 +237,25 @@ bool check_R_matrix(const matrix &R_matrix) {
 }
 
 /*
+ * Calculates first aproximation of inversed A_matrix called B_matrix
+ */
+matrix calculate_first_B_matrix(const matrix &trans_A_matrix,
+                                const matrix &A_matrix) {
+    matrix B_matrix = multiply_by_scalar(
+        trans_A_matrix, 1 / calculate_matrix_trace(
+                                multiply_matrices(trans_A_matrix, A_matrix)));
+    return B_matrix;
+}
+
+/*
  * Calculates next aproximation of inversed A_matrix called B_matrix
  */
 matrix calculate_next_B_matrix(const matrix &B_matrix,
                                const matrix &BxA_matrix) {
-    matrix next_B_matrix =
-        substract_matrices(multiply_by_scalar(B_matrix, 2),
-                           multiply_matrices(BxA_matrix, B_matrix));
+    auto f1 = std::async(std::launch::async, multiply_by_scalar, B_matrix, 2);
+    auto f2 =
+        std::async(std::launch::async, multiply_matrices, BxA_matrix, B_matrix);
+    matrix next_B_matrix = substract_matrices(f1.get(), f2.get());
     return next_B_matrix;
 }
 
@@ -248,18 +263,23 @@ matrix calculate_next_B_matrix(const matrix &B_matrix,
  * Inverses matrix with fast iterative method
  */
 matrix inverse_matrix_iterative(const matrix &A_matrix) {
-    const matrix I_matrix = create_identity_matrix(A_matrix.size());
-    matrix trans_A_matrix = transpose_matrix(A_matrix);
-    matrix B_matrix = multiply_by_scalar(
-        trans_A_matrix, 1 / calculate_matrix_trace(
-                                multiply_matrices(trans_A_matrix, A_matrix)));
+    std::future<matrix> f1 =
+        std::async(std::launch::async, transpose_matrix, A_matrix);
+    std::future<matrix> f2 =
+        std::async(std::launch::async, create_identity_matrix, A_matrix.size());
+    matrix B_matrix = calculate_first_B_matrix(f1.get(), A_matrix);
+    const matrix I_matrix = f2.get();
     matrix R_matrix =
         calculate_R_matrix(I_matrix, multiply_matrices(B_matrix, A_matrix));
 
     while (!check_R_matrix(R_matrix)) {
         matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
-        B_matrix = calculate_next_B_matrix(B_matrix, BxA_matrix);
-        R_matrix = calculate_R_matrix(I_matrix, BxA_matrix);
+        std::future<matrix> f_B = std::async(
+            std::launch::async, calculate_next_B_matrix, B_matrix, BxA_matrix);
+        std::future<matrix> f_R = std::async(
+            std::launch::async, calculate_R_matrix, I_matrix, BxA_matrix);
+        R_matrix = f_R.get();
+        B_matrix = f_B.get();
     }
 
     return B_matrix;
