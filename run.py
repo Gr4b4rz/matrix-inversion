@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-scope = range(10, 20, 10)
+scope = range(10, 110, 10)
 labels = list(map(str, scope))
 func1 = lambda x: timeit(partial(run, ["build/matrix-inversion", "{}".format(x)]), number=5) / 5
 
-# TODO dir to be changed
-func2 = lambda x: timeit(partial(run, ["build/matrix-inversion", "{}".format(x)]), number=5) / 5
+# TODO dir to be
+func2 = lambda x: timeit(partial(run, ["build1/matrix-inversion", "{}".format(x)]), number=5) / 5
 
 a = list(map(func1, [i for i in scope]))
 b = list(map(func2, [i for i in scope]))
