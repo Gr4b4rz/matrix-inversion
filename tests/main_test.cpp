@@ -27,7 +27,7 @@ matrix read_matrix_from_file(std::string path){
 
 return m;
 }
-//TODO change CHECK_CLOSE to BOOST_EQUA
+//TODO change CHECK_CLOSE to BOOST_TEST
 
 BOOST_AUTO_TEST_CASE(two_on_two_matrix_test)
 {
