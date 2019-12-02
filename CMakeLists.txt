@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.8.9)
 project (matrix-inversion)
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-lpthread -floop-parallelize-all -ftree-parallelize-loops=4")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
