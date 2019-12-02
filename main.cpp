@@ -15,10 +15,11 @@ int main(int argc, char **argv) {
     else
         dim = atoi(argv[1]);
 
-    std::cout << "Suggested number of threads = " <<  std::thread::hardware_concurrency() << std::endl;
+    // std::cout << "Suggested number of threads = " <<  std::thread::hardware_concurrency() << std::endl;
     matrix random_matrix = create_random_matrix(dim);
     matrix m = inverse_matrix_iterative(random_matrix);
-
+    std::cout<<std::endl;
+    std::cout<<11/3;
     std::cout << "Matrix has been successfully inversed" << std::endl;
 
     return 0;

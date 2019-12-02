@@ -54,8 +54,8 @@ matrix create_random_matrix(int dim) {
     std::uniform_int_distribution<int> dis(RANDOM_RANGE.first,
                                            RANDOM_RANGE.second);
     matrix random_matrix((dim), std::vector<double>(dim));
-    for (auto &raw : random_matrix)
-        for (auto &element : raw)
+    for (auto &row : random_matrix)
+        for (auto &element : row)
             element = dis(generator);
 
     return random_matrix;
@@ -113,15 +113,21 @@ void multiply_matrices_partially(const matrix &a_matrix, const matrix &b_matrix,
 
 matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix) {
     size_t m_size = a_matrix.size();
+    size_t thread_size = 8;
+    int rest  = m_size % thread_size;
+
     matrix m_matrix((m_size), std::vector<double>(m_size));
-
-    size_t thread_size = 10;
-
     std::vector<std::future<void>> v;
 
-    for (auto i=0; i < thread_size; ++i){
-      v.push_back(std::async(std::launch::async, multiply_matrices_partially, std::ref(a_matrix), std::ref(b_matrix), std::ref(m_matrix), i * m_size/thread_size, m_size/thread_size * (i+1)));
+    if (thread_size < m_size){
+      for (auto i=0; i < thread_size; ++i){
+          v.push_back(std::async(std::launch::async, multiply_matrices_partially, std::ref(a_matrix), std::ref(b_matrix), std::ref(m_matrix), i * std::floor(m_size/thread_size), std::floor(m_size/thread_size) * (i+1)));
+      }
     }
+
+    if (rest !=0)
+        v.push_back(std::async(std::launch::async, multiply_matrices_partially, std::ref(a_matrix), std::ref(b_matrix), std::ref(m_matrix), thread_size * std::floor(m_size/thread_size), m_size));
+
 
     for (auto it = v.begin(); v.end() != it; it++) {
         (*it).get();
@@ -182,8 +188,8 @@ matrix calculate_R_matrix(const matrix &I_matrix, const matrix &BxA_matrix) {
  */
 bool check_R_matrix(const matrix &R_matrix) {
     //double R_matrix_sum = 0.0;
-    for (const auto &raw : R_matrix)
-        for (const auto &element : raw)
+    for (const auto &row : R_matrix)
+        for (const auto &element : row)
             if (fabs(element) > EPSILON)
               return false;
 
@@ -228,7 +234,7 @@ matrix inverse_matrix_iterative(const matrix &A_matrix) {
 
     matrix R_matrix =
         calculate_R_matrix(I_matrix, multiply_matrices(B_matrix, A_matrix));
-
+    int counter = 0;
     while (!check_R_matrix(R_matrix)) {
         matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
 
@@ -238,8 +244,10 @@ matrix inverse_matrix_iterative(const matrix &A_matrix) {
             std::launch::async, calculate_R_matrix, I_matrix, BxA_matrix);
         R_matrix = f_R.get();
         B_matrix = f_B.get();
+        counter ++;
 
     }
+    std::cout<<counter;
     return B_matrix;
 }
 
