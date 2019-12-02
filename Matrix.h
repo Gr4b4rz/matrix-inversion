@@ -16,6 +16,9 @@ const std::pair<int, int> RANDOM_RANGE = {1, 10000};
 
 class ZeroDiagonalEception : std::exception {};
 
+void calculate_column(int k, matrix &A, matrix &X);
+void decompose_to_LU(matrix &a_matrix);
+matrix inverse_matrix(matrix &mtx);
 matrix create_identity_matrix(int dim);
 void print_matrix(const matrix &mtx);
 matrix create_random_matrix(int dim);
@@ -45,6 +48,73 @@ void print_matrix(const matrix &mtx) {
     }
 }
 
+/*
+ * Factorization of a given square matrix into two triangular matrices L and U.
+ * Matrices are merged in the given square matrix.
+ */
+void decompose_to_LU(matrix &a_matrix) {
+    for (int k = 0; k < a_matrix.size() - 1; ++k) {
+        if (fabs(a_matrix[k][k]) < EPSILON)
+            throw ZeroDiagonalEception();
+
+        for (int i = k + 1; i < a_matrix[0].size(); ++i)
+            a_matrix[i][k] /= a_matrix[k][k];
+
+        for (int i = k + 1; i < a_matrix.size(); ++i)
+            for (int j = k + 1; j < a_matrix[0].size(); ++j)
+                a_matrix[i][j] -= a_matrix[i][k] * a_matrix[k][j];
+    }
+}
+
+/*
+ * Calculate column of inversed matrix.
+ */
+void calculate_column(int k, matrix &a_matrix, matrix &x_matrix) {
+    for (int i = 1; i < a_matrix.size(); ++i) {
+        double s = 0;
+
+        for (int j = 0; j < i; ++j)
+            s += a_matrix[i][j] * x_matrix[j][k];
+
+        x_matrix[i][k] -= s;
+    }
+
+    if (fabs(a_matrix[a_matrix.size() - 1][a_matrix[0].size() - 1]) < EPSILON)
+        throw ZeroDiagonalEception();
+
+    x_matrix[x_matrix.size() - 1][k] /=
+        a_matrix[a_matrix.size() - 1][a_matrix[0].size() - 1];
+
+    for (int i = x_matrix.size() - 2; i >= 0; --i) {
+        double s = 0;
+
+        for (int j = i + 1; j < a_matrix[0].size(); ++j)
+            s += a_matrix[i][j] * x_matrix[j][k];
+
+        if (fabs(a_matrix[i][i]) < EPSILON)
+            throw ZeroDiagonalEception();
+
+        x_matrix[i][k] = (x_matrix[i][k] - s) / a_matrix[i][i];
+    }
+}
+
+/*
+ * Inverses given matrix.
+ */
+matrix inverse_matrix(matrix &a_matrix) {
+    matrix i_matrix = create_identity_matrix(a_matrix.size());
+    try {
+        decompose_to_LU(a_matrix);
+        for (int i = 0; i < a_matrix.size(); ++i)
+            calculate_column(i, a_matrix, i_matrix);
+    } catch (ZeroDiagonalEception &) {
+        std::cout << "Division by zero exception!\n"
+                  << "There was a zero on the diagonal of a matrix.\n";
+        exit(EXIT_FAILURE);
+    }
+
+    return i_matrix;
+}
 /*
  * Create random square matrix. Its dimension is passed in argument.
  * Random values range is hardcoded in RANDOM_RANGE const variable.

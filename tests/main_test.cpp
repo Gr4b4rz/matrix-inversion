@@ -211,3 +211,42 @@ BOOST_AUTO_TEST_CASE(multiply_by_scalar_test)
       for (int j = 0; j < expected.size(); ++j)
           BOOST_CHECK_EQUAL(multiplied[i][j], expected[i][j]);
 }
+
+BOOST_AUTO_TEST_CASE(compare_different_of_inversions_50_X_50)
+{
+  matrix m = create_random_matrix(50);
+
+  matrix m1 = inverse_matrix_iterative(m);
+  matrix m2 = inverse_matrix(m);
+
+  for (int i =0; i < m.size(); ++i)
+      for (int j = 0; j < m.size(); ++j)
+          BOOST_CHECK_CLOSE(m1[i][j], m2[i][j], 0.00001);
+
+}
+
+BOOST_AUTO_TEST_CASE(compare_different_of_inversions_100_X_100)
+{
+  matrix m = create_random_matrix(100);
+
+  matrix m1 = inverse_matrix_iterative(m);
+  matrix m2 = inverse_matrix(m);
+
+  for (int i =0; i < m.size(); ++i)
+      for (int j = 0; j < m.size(); ++j)
+          BOOST_CHECK_CLOSE(m1[i][j], m2[i][j], 0.00001);
+
+}
+
+BOOST_AUTO_TEST_CASE(compare_different_of_inversions_200_X_200)
+{
+  matrix m = create_random_matrix(200);
+
+  matrix m1 = inverse_matrix_iterative(m);
+  matrix m2 = inverse_matrix(m);
+
+  for (int i =0; i < m.size(); ++i)
+      for (int j = 0; j < m.size(); ++j)
+          BOOST_CHECK_CLOSE(m1[i][j], m2[i][j], 0.0001);
+
+}
