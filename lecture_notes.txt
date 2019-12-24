@@ -1,0 +1,7 @@
+Deadline projektu - 14.01.2020;
+Egzamin - 03.02.2020 9:00-11:00 sala 118;
+
+Wykład 2019-11-05, slajd 29,30,31,32 będzie na egzaminie.
+Trzeba będzie odgadnąć współczynniki i uzyskać dominację wszędzie.
+Możliwe, że nie będzie sie dało uzyskać bezwzględnej dominacji wierszowej "Przykład 2".
+Wtedy trzeba to wykazać metodą niewprost.
