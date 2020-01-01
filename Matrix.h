@@ -121,7 +121,7 @@ void multiply_matrices_partially(const matrix &a_matrix, const matrix &b_matrix,
  */
 matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix) {
     size_t m_size = a_matrix.size();
-    size_t thread_size = 2;
+    size_t thread_size = 8;
     int rest = m_size % thread_size;
 
     matrix m_matrix((m_size), std::vector<double>(m_size));
