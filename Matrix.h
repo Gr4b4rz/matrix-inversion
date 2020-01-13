@@ -2,11 +2,11 @@
 #define MATRIX_HPP
 
 #include <cmath>
-#include <future>
 #include <iostream>
 #include <random>
 #include <string>
 #include <vector>
+#include <mpi.h>
 
 using matrix = std::vector<std::vector<double>>;
 const double EPSILON = 1e-11;
@@ -121,32 +121,20 @@ void multiply_matrices_partially(const matrix &a_matrix, const matrix &b_matrix,
  */
 matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix) {
     size_t m_size = a_matrix.size();
-    size_t thread_size = 2;
-    int rest = m_size % thread_size;
-
+    int proc_index, proc_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_index);
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_size);
+    int rest = m_size % proc_size;
     matrix m_matrix((m_size), std::vector<double>(m_size));
-    std::vector<std::future<void>> v;
-
-    if (thread_size < m_size) {
-        for (auto i = 0; i < thread_size; ++i) {
-            v.push_back(std::async(
-                std::launch::async, multiply_matrices_partially,
-                std::ref(a_matrix), std::ref(b_matrix), std::ref(m_matrix),
-                i * std::floor(m_size / thread_size),
-                std::floor(m_size / thread_size) * (i + 1)));
-        }
-    }
+    multiply_matrices_partially(a_matrix, b_matrix, m_matrix, 0, m_size);
+    // multiply_matrices_partially(a_matrix, b_matrix, m_matrix,
+				// proc_index * std::floor(m_size / proc_size),
+				// (proc_index + 1) * std::floor(m_size / proc_size));
 
     if (rest != 0)
-        v.push_back(std::async(
-            std::launch::async, multiply_matrices_partially, std::ref(a_matrix),
-            std::ref(b_matrix), std::ref(m_matrix),
-            thread_size * std::floor(m_size / thread_size), m_size));
-
-    for (auto it = v.begin(); v.end() != it; it++) {
-        (*it).get();
-    }
-
+	multiply_matrices_partially(a_matrix, b_matrix, m_matrix,
+				    proc_size * std::floor(m_size / proc_size),
+				    m_size);
     return m_matrix;
 }
 
@@ -229,10 +217,9 @@ matrix calculate_first_B_matrix(const matrix &trans_A_matrix,
  */
 matrix calculate_next_B_matrix(const matrix &B_matrix,
                                const matrix &BxA_matrix) {
-    auto f1 = std::async(std::launch::async, multiply_by_scalar, B_matrix, 2);
-    auto f2 =
-        std::async(std::launch::async, multiply_matrices, BxA_matrix, B_matrix);
-    matrix next_B_matrix = substract_matrices(f1.get(), f2.get());
+    matrix next_B_matrix = substract_matrices(multiply_by_scalar(B_matrix, 2),
+					      multiply_matrices(BxA_matrix,
+								B_matrix));
     return next_B_matrix;
 }
 
@@ -240,25 +227,17 @@ matrix calculate_next_B_matrix(const matrix &B_matrix,
  * Inverses matrix with fast iterative method
  */
 matrix inverse_matrix_iterative(const matrix &A_matrix) {
-    std::future<matrix> f1 =
-        std::async(std::launch::async, transpose_matrix, A_matrix);
-    std::future<matrix> f2 =
-        std::async(std::launch::async, create_identity_matrix, A_matrix.size());
+    auto T_matrix = transpose_matrix(A_matrix);
 
-    matrix B_matrix = calculate_first_B_matrix(f1.get(), A_matrix);
-    const matrix I_matrix = f2.get();
-
+    matrix B_matrix = calculate_first_B_matrix(T_matrix, A_matrix);
+    auto I_matrix = create_identity_matrix(A_matrix.size());
     matrix R_matrix =
         calculate_R_matrix(I_matrix, multiply_matrices(B_matrix, A_matrix));
     while (!check_R_matrix(R_matrix)) {
         matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
 
-        std::future<matrix> f_B = std::async(
-            std::launch::async, calculate_next_B_matrix, B_matrix, BxA_matrix);
-        std::future<matrix> f_R = std::async(
-            std::launch::async, calculate_R_matrix, I_matrix, BxA_matrix);
-        R_matrix = f_R.get();
-        B_matrix = f_B.get();
+        R_matrix = calculate_R_matrix(I_matrix, BxA_matrix);
+        B_matrix = calculate_next_B_matrix(B_matrix, BxA_matrix);
     }
     return B_matrix;
 }
