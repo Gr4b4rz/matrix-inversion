@@ -30,28 +30,31 @@ matrix read_matrix_from_file(std::string path) {
 
 // TODO change TEST to BOOST_EQUA
 
-BOOST_AUTO_TEST_CASE(two_on_two_matrix_test) {
-    matrix m = matrix{{4.0, 7.0}, {2.0, 6.0}};
+// BOOST_AUTO_TEST_CASE(two_on_two_matrix_test) {
+    // MPI_Init(NULL, NULL);
+    // matrix m = matrix{{4.0, 7.0}, {2.0, 6.0}};
 
-    matrix expected = matrix{{0.6, -0.7}, {-0.2, 0.4}};
-    matrix inversed = inverse_matrix_iterative(m);
+    // matrix expected = matrix{{0.6, -0.7}, {-0.2, 0.4}};
+    // matrix inversed = inverse_matrix_iterative(m);
 
-    for (int i = 0; i < expected.size(); ++i)
-        for (int j = 0; j < expected.size(); ++j)
-            BOOST_TEST(inversed[i][j] == expected[i][j], tt::tolerance(EPSILON));
-}
+    // for (int i = 0; i < expected.size(); ++i)
+        // for (int j = 0; j < expected.size(); ++j)
+            // BOOST_TEST(inversed[i][j] == expected[i][j], tt::tolerance(EPSILON));
+// }
 
-BOOST_AUTO_TEST_CASE(three_on_three_matrix_test) {
-    matrix m = matrix{{0.0, 0.0, 1.0}, {0.0, 1.0, 5.0}, {5.0, 6.0, 0.0}};
+// BOOST_AUTO_TEST_CASE(three_on_three_matrix_test) {
+    // matrix m = matrix{{0.0, 0.0, 1.0}, {0.0, 1.0, 5.0}, {5.0, 6.0, 0.0}};
 
-    matrix expected = matrix{{6.0, -1.2, 0.2}, {-5.0, 1, 0.0}, {1.0, 0.0, 0.0}};
-    matrix inversed = inverse_matrix_iterative(m);
+    // matrix expected = matrix{{6.0, -1.2, 0.2}, {-5.0, 1, 0.0}, {1.0, 0.0, 0.0}};
+    // matrix inversed = inverse_matrix_iterative(m);
 
-    for (int i = 0; i < expected.size(); ++i)
-        for (int j = 0; j < expected.size(); ++j)
-            BOOST_TEST(inversed[i][j] == expected[i][j], tt::tolerance(EPSILON));
-}
+    // for (int i = 0; i < expected.size(); ++i)
+        // for (int j = 0; j < expected.size(); ++j)
+            // BOOST_TEST(inversed[i][j] == expected[i][j], tt::tolerance(EPSILON));
+// }
 BOOST_AUTO_TEST_CASE(four_on_four_matrix_test) {
+    MPI_Init(NULL, NULL);
+
     matrix m =
         matrix{{1, 1, 1, 11}, {1, 15, 1, 1}, {21, 1, 14, 13}, {1, 1, 1, 5}};
 
@@ -142,15 +145,15 @@ BOOST_AUTO_TEST_CASE(multiply_by_scalar_test) {
             BOOST_CHECK_EQUAL(multiplied[i][j], expected[i][j]);
 }
 
-BOOST_AUTO_TEST_CASE(compare_different_of_inversions_50_X_50) {
-    matrix m = create_random_matrix(50);
+BOOST_AUTO_TEST_CASE(compare_different_of_inversions_40_X_40) {
+    matrix m = create_random_matrix(40);
 
     matrix m1 = inverse_matrix_iterative(m);
     matrix m2 = inverse_matrix(m);
 
     for (int i = 0; i < m.size(); ++i)
-        for (int j = 0; j < m.size(); ++j)
-            BOOST_TEST(m1[i][j] == m2[i][j], tt::tolerance(0.0000001));
+	for (int j = 0; j < m.size(); ++j)
+	    BOOST_TEST(m1[i][j] == m2[i][j], tt::tolerance(0.0000001));
 }
 
 BOOST_AUTO_TEST_CASE(compare_different_of_inversions_100_X_100) {
@@ -160,8 +163,8 @@ BOOST_AUTO_TEST_CASE(compare_different_of_inversions_100_X_100) {
     matrix m2 = inverse_matrix(m);
 
     for (int i = 0; i < m.size(); ++i)
-        for (int j = 0; j < m.size(); ++j)
-            BOOST_TEST(m1[i][j] == m2[i][j], tt::tolerance(0.0000001));
+	for (int j = 0; j < m.size(); ++j)
+	    BOOST_TEST(m1[i][j] == m2[i][j], tt::tolerance(0.0000001));
 }
 
 BOOST_AUTO_TEST_CASE(compare_different_of_inversions_200_X_200) {
@@ -171,6 +174,9 @@ BOOST_AUTO_TEST_CASE(compare_different_of_inversions_200_X_200) {
     matrix m2 = inverse_matrix(m);
 
     for (int i = 0; i < m.size(); ++i)
-        for (int j = 0; j < m.size(); ++j)
-            BOOST_TEST(m1[i][j] == m2[i][j], tt::tolerance(0.000001));
+	for (int j = 0; j < m.size(); ++j)
+	    BOOST_TEST(m1[i][j] == m2[i][j], tt::tolerance(0.000001));
+    MPI_Finalize();
 }
+
+

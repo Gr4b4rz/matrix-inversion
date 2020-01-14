@@ -2,11 +2,11 @@
 #define MATRIX_HPP
 
 #include <cmath>
-#include <future>
 #include <iostream>
 #include <random>
 #include <string>
 #include <vector>
+#include <mpi.h>
 
 using matrix = std::vector<std::vector<double>>;
 const double EPSILON = 1e-11;
@@ -21,7 +21,7 @@ matrix create_identity_matrix(int dim);
 matrix transpose_matrix(const matrix &mtx);
 matrix substract_matrices(const matrix &a_matrix, const matrix &b_matrix);
 void multiply_matrices_partially(const matrix &a_matrix, const matrix &b_matrix,
-                                 matrix &output, int start, int end);
+                                 int start, int end, double *mpi_array);
 matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix);
 matrix multiply_by_scalar(const matrix &a_matrix, double val);
 double calculate_matrix_trace(const matrix &mtx);
@@ -106,13 +106,15 @@ matrix substract_matrices(const matrix &a_matrix, const matrix &b_matrix) {
  * Multiplies part of matrix A by part of matrix B
  */
 void multiply_matrices_partially(const matrix &a_matrix, const matrix &b_matrix,
-                                 matrix &m_matrix, int start, int end) {
+                                 int start, int end, double *mpi_array) {
     size_t size = a_matrix.size();
+    int n = 0;
     for (size_t i = start; i < end; ++i) {
-        for (size_t j = 0; j < size; ++j) {
-            for (size_t k = 0; k < size; k++)
-                m_matrix[i][j] += a_matrix[i][k] * b_matrix[k][j];
-        }
+	for (size_t j = 0; j < size; ++j) {
+	    for (size_t k = 0; k < size; k++)
+		mpi_array[n] += a_matrix[i][k] * b_matrix[k][j];
+	    ++n;
+	}
     }
 }
 
@@ -120,48 +122,91 @@ void multiply_matrices_partially(const matrix &a_matrix, const matrix &b_matrix,
  * Multiplies matrix A by matrix B - parallel
  */
 matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    double *mpi_array;
     size_t m_size = a_matrix.size();
-    size_t thread_size = 8;
-    int rest = m_size % thread_size;
 
+    int proc_index, proc_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_index);
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_size);
+    MPI_Status status;
+    int rest = m_size % proc_size;
+    int quotient = std::floor(m_size / proc_size);
+    int start = proc_index * quotient;
+    int end = (proc_index + 1) * quotient;
+    mpi_array = new double [quotient * m_size]();
     matrix m_matrix((m_size), std::vector<double>(m_size));
-    std::vector<std::future<void>> v;
+    double *full_array = new double [m_size * m_size]();
 
-    if (thread_size < m_size) {
-        for (auto i = 0; i < thread_size; ++i) {
-            v.push_back(std::async(
-                std::launch::async, multiply_matrices_partially,
-                std::ref(a_matrix), std::ref(b_matrix), std::ref(m_matrix),
-                i * std::floor(m_size / thread_size),
-                std::floor(m_size / thread_size) * (i + 1)));
-        }
+    multiply_matrices_partially(a_matrix, b_matrix, start, end, mpi_array);
+
+    if (proc_index != 0)
+	MPI_Send(mpi_array, quotient * m_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+
+    if (proc_index == 0) {
+	int n = 0;
+	for (size_t i = start; i < end; ++i) {
+	    for (size_t j = 0; j < m_size; ++j) {
+		m_matrix[i][j] = mpi_array[n];
+		++n;
+	    }
+	}
+	for (int source = 1; source < proc_size; ++source) {
+	    MPI_Recv(mpi_array, quotient * m_size, MPI_DOUBLE, source, 0,
+		     MPI_COMM_WORLD, &status);
+	    int n = 0;
+	    start = source * quotient;
+	    end = (source + 1) * quotient;
+	    for (size_t i = start; i < end; ++i) {
+		for (size_t j = 0; j < m_size; ++j) {
+		    m_matrix[i][j] = mpi_array[n];
+		    ++n;
+		}
+	    }
+	}
+	n = 0;
+	for (size_t i = 0; i < m_size; ++i) {
+	    for (size_t j = 0; j < m_size; ++j) {
+		full_array[n] = m_matrix[i][j];
+		++n;
+	    }
+	}
     }
 
-    if (rest != 0)
-        v.push_back(std::async(
-            std::launch::async, multiply_matrices_partially, std::ref(a_matrix),
-            std::ref(b_matrix), std::ref(m_matrix),
-            thread_size * std::floor(m_size / thread_size), m_size));
-
-    for (auto it = v.begin(); v.end() != it; it++) {
-        (*it).get();
+    // if (rest != 0)
+	// multiply_matrices_partially(a_matrix, b_matrix, m_matrix,
+				    // proc_size * std::floor(m_size / proc_size),
+				    // m_size);
+    MPI_Bcast(full_array, m_size * m_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    if (proc_index != 0) {
+	int n = 0;
+	for (size_t i = 0; i < m_size; ++i) {
+	    for (size_t j = 0; j < m_size; ++j) {
+		m_matrix[i][j] = full_array[n];
+		++n;
+	    }
+	}
     }
 
+    delete [] mpi_array;
+    delete [] full_array;
+    mpi_array = nullptr;
+    full_array = nullptr;
     return m_matrix;
 }
 
 /*
  * Multiplies matrix A by matrix B - no parallelisation
  */
-// matrix multiply_matrices(const matrix &a_matrix, const matrix &b_matrix) {
-//     matrix m_matrix((a_matrix.size()), std::vector<double>(a_matrix.size()));
-//     for (size_t i = 0; i < a_matrix.size(); ++i) {
-//         for (size_t j = 0; j < a_matrix[0].size(); ++j) {
-//             for (size_t k = 0; k < a_matrix.size(); k++)
-//                 m_matrix[i][j] += a_matrix[i][k] * b_matrix[k][j];
-//         }
-//     }
-//     return m_matrix;
+// matrix multiply_matrices_test(const matrix &a_matrix, const matrix &b_matrix) {
+    // matrix m_matrix((a_matrix.size()), std::vector<double>(a_matrix.size()));
+    // for (size_t i = 0; i < a_matrix.size(); ++i) {
+	// for (size_t j = 0; j < a_matrix[0].size(); ++j) {
+	    // for (size_t k = 0; k < a_matrix.size(); k++)
+		// m_matrix[i][j] += a_matrix[i][k] * b_matrix[k][j];
+	// }
+    // }
+    // return m_matrix;
 // }
 
 /*
@@ -229,10 +274,9 @@ matrix calculate_first_B_matrix(const matrix &trans_A_matrix,
  */
 matrix calculate_next_B_matrix(const matrix &B_matrix,
                                const matrix &BxA_matrix) {
-    auto f1 = std::async(std::launch::async, multiply_by_scalar, B_matrix, 2);
-    auto f2 =
-        std::async(std::launch::async, multiply_matrices, BxA_matrix, B_matrix);
-    matrix next_B_matrix = substract_matrices(f1.get(), f2.get());
+    matrix next_B_matrix = substract_matrices(multiply_by_scalar(B_matrix, 2),
+					      multiply_matrices(BxA_matrix,
+								B_matrix));
     return next_B_matrix;
 }
 
@@ -240,25 +284,26 @@ matrix calculate_next_B_matrix(const matrix &B_matrix,
  * Inverses matrix with fast iterative method
  */
 matrix inverse_matrix_iterative(const matrix &A_matrix) {
-    std::future<matrix> f1 =
-        std::async(std::launch::async, transpose_matrix, A_matrix);
-    std::future<matrix> f2 =
-        std::async(std::launch::async, create_identity_matrix, A_matrix.size());
+    int proc_index, proc_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_index);
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_size);
+    auto T_matrix = transpose_matrix(A_matrix);
 
-    matrix B_matrix = calculate_first_B_matrix(f1.get(), A_matrix);
-    const matrix I_matrix = f2.get();
-
+    matrix B_matrix = calculate_first_B_matrix(T_matrix, A_matrix);
+    matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto I_matrix = create_identity_matrix(A_matrix.size());
     matrix R_matrix =
-        calculate_R_matrix(I_matrix, multiply_matrices(B_matrix, A_matrix));
-    while (!check_R_matrix(R_matrix)) {
-        matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
+	calculate_R_matrix(I_matrix, multiply_matrices(B_matrix, A_matrix));
+    MPI_Barrier(MPI_COMM_WORLD);
 
-        std::future<matrix> f_B = std::async(
-            std::launch::async, calculate_next_B_matrix, B_matrix, BxA_matrix);
-        std::future<matrix> f_R = std::async(
-            std::launch::async, calculate_R_matrix, I_matrix, BxA_matrix);
-        R_matrix = f_R.get();
-        B_matrix = f_B.get();
+    while (!check_R_matrix(R_matrix)) {
+	matrix BxA_matrix = multiply_matrices(B_matrix, A_matrix);
+	MPI_Barrier(MPI_COMM_WORLD);
+	R_matrix = calculate_R_matrix(I_matrix, BxA_matrix);
+
+	B_matrix = calculate_next_B_matrix(B_matrix, BxA_matrix);
+	MPI_Barrier(MPI_COMM_WORLD);
     }
     return B_matrix;
 }
