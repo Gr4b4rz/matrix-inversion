@@ -16,7 +16,11 @@ int main(int argc, char **argv) {
 
     matrix random_matrix = create_random_matrix(dim);
     matrix m = inverse_matrix_iterative(random_matrix);
-    std::cout << "Matrix has been successfully inversed" << std::endl;
+    int proc_index, proc_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_index);
+
+    if (proc_index == 0)
+	std::cout << "Matrix has been successfully inversed" << std::endl;
 
     MPI_Finalize();
 
